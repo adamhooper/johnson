@@ -3202,7 +3202,7 @@ W3CDOMElement.prototype.setAttributeNS = function W3CDOMElement_setAttributeNS(n
   }
 
   // if this Attribute is an ID
-  if (this.ownerDocument.implementation._isIdDeclaration(name)) {
+  if (this.ownerDocument.implementation._isIdDeclaration(attr.name)) {
     this.id = value;  // cache ID for getElementById()
   }
 
