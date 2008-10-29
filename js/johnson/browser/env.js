@@ -91,47 +91,38 @@ print = function(txt) { Ruby.puts(txt); };
   
   // Window Events
   
-  var events = [{}];
+  var events = {};
+
+	window.clearEventListeners = function() {
+		events = {};
+	};
 
   window.addEventListener = function(type, fn){
-    if ( !this.uuid || this == window ) {
-      this.uuid = events.length;
-      events[this.uuid] = {};
-    }
-     
-    if ( !events[this.uuid][type] )
-      events[this.uuid][type] = [];
-    
-    if ( events[this.uuid][type].indexOf( fn ) < 0 )
-      events[this.uuid][type].push( fn );
+		var id = this;
+
+		if (!events[id]) {
+			events[id] = {};
+		}
+		events[id][type] = fn;
   };
   
   window.removeEventListener = function(type, fn){
-     if ( !this.uuid || this == window ) {
-         this.uuid = events.length;
-         events[this.uuid] = {};
-     }
-     
-     if ( !events[this.uuid][type] )
-      events[this.uuid][type] = [];
-      
-    events[this.uuid][type] =
-      events[this.uuid][type].filter(function(f){
-        return f != fn;
-      });
-  };
+		var id = this;
+
+		if (!events[id] || !events[id][type]) return;
+
+		events[id][type] = undefined;
+	};
   
   window.dispatchEvent = function(event){
     if ( event.type ) {
-      if ( this.uuid && events[this.uuid][event.type] ) {
-        var self = this;
-      
-        events[this.uuid][event.type].forEach(function(fn){
-          fn.call( self, event );
-        });
+			var id = this;
+
+      if (events[id] && events[id][event.type]) {
+				events[id][event.type].call(this, event);
       }
       
-      if ( this["on" + event.type] )
+      if (event.type != 'click' && this["on" + event.type])
         this["on" + event.type].call( self, event );
     }
   };
@@ -274,7 +265,7 @@ print = function(txt) { Ruby.puts(txt); };
       return getDocument( this._dom.getOwnerDocument() );
     },
     get documentElement(){
-      return makeNode( this._dom.getDocumentElement() );
+			return this._dom && this._dom.documentElement;
     },
     get parentNode() {
       return makeNode( this._dom.getParentNode() );
@@ -289,8 +280,11 @@ print = function(txt) { Ruby.puts(txt); };
       return '"' + this.nodeValue + '"';
     },
     get outerHTML(){
-      return this.nodeValue;
-    }
+      return '' + this.nodeValue;
+    },
+		get data() {
+			return '' + this._dom.data;
+		}
   };
 
   // DOM Element
@@ -299,7 +293,22 @@ print = function(txt) { Ruby.puts(txt); };
     this._dom = elem;
     this.style = {
       get opacity(){ return this._opacity; },
-      set opacity(val){ this._opacity = val + ""; }
+      set opacity(val){ this._opacity = val; },
+			get display(){
+				if (this._display) return this._display;
+				
+				var defaults = {
+					'span': 'inline',
+					'li': 'list-item',
+					'a': 'inline',
+					'div': 'block',
+					'p': 'block'
+				};
+				return this._display = defaults[elem.nodeName];
+			},
+			set display(val) { this._display = val; },
+			get visibility(){ return this._visibility || 'visible'; },
+			set visibility(val) { this._visibility = val; }
     };
     
     // Load CSS info
@@ -355,8 +364,7 @@ print = function(txt) { Ruby.puts(txt); };
       });
       
       var nodes = this.ownerDocument.importNode(
-        new DOMDocument( html ).documentElement, true
-      ).childNodes;
+        new DOMDocument("<div>" + html + "</div>").documentElement, true).childNodes;
         
       while (this.firstChild)
         this.removeChild( this.firstChild );
@@ -451,8 +459,8 @@ print = function(txt) { Ruby.puts(txt); };
     
     getAttribute: function(name){
       return this._dom.hasAttribute(name) ?
-        new String( this._dom.getAttribute(name) ) :
-        null;
+				'' + this._dom.getAttribute(name) : // dunno why
+				null;
     },
     setAttribute: function(name,value){
       this._dom.setAttribute(name,value);
@@ -491,6 +499,11 @@ print = function(txt) { Ruby.puts(txt); };
       event.initEvent("click");
       this.dispatchEvent(event);
     },
+		onclick: function() { // for jQuery
+      var event = document.createEvent();
+      event.initEvent("click");
+      this.dispatchEvent(event);
+		},
     submit: function(){
       var event = document.createEvent();
       event.initEvent("submit");
@@ -518,8 +531,7 @@ print = function(txt) { Ruby.puts(txt); };
       if ( this.nodeName == "IFRAME" ) {
         if ( !this._doc )
           this._doc = new DOMDocument(
-            "<html><head><title></title></head><body></body></html>"
-          );
+            "<html><head><title></title></head><body></body></html>");
         return this._doc;
       } else
         return null;
@@ -586,6 +598,7 @@ print = function(txt) { Ruby.puts(txt); };
 
       function makeRequest(){
         var url = curLocation.merge(self.url);
+				var file;
         var connection;
         
         if ( url.scheme == "file" ) {
@@ -597,15 +610,15 @@ print = function(txt) { Ruby.puts(txt); };
             out.flush();
             out.close();
           } else if ( self.method == "DELETE" ) {
-            var file = new Ruby.File(url.path());
+            file = new Ruby.File(url.path());
             file["delete"]();
           } else if ( self.method == "GET" ) {
-            var file = Ruby.File.read(url.path);
+            file = Ruby.File.read(url.path);
             connection = {
               code: "200",
               message: "Ok",
-              body: file,
-            }
+              body: file
+            };
             handleResponse();
           } else {
             connection = Ruby.Net.HTTP.start(url.host, url.port, function(http) {
@@ -614,12 +627,12 @@ print = function(txt) { Ruby.puts(txt); };
             handleResponse();
           }
         } else { 
-          var http = Ruby.Net.HTTP.new(url.host, url.port);
+          var http = Ruby.Net.HTTP['new'](url.host, url.port);
           var request = new Ruby.Net.HTTP.Get(url.path);
           for (var header in self.headers)
             request.add_field(header, self.headers[header]);
 
-          var connection = http.request(request);
+          connection = http.request(request);
           connection.each_header(function(k,v) {
             self.responseHeaders[k] = v;
           });
@@ -629,7 +642,7 @@ print = function(txt) { Ruby.puts(txt); };
         
         function handleResponse(){
           self.readyState = 4;
-          self.status = parseInt(connection.code) || undefined;
+          self.status = parseInt(connection.code, 10) || undefined;
           self.statusText = connection.message || "";
           
           self.responseText = connection.body;
