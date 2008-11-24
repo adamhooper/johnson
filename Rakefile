@@ -3,6 +3,8 @@ require "erb"
 require "./lib/hoe.rb"
 require "./lib/johnson/version.rb"
 
+abort "Need Ruby version 1.8.6!" unless RUBY_VERSION == "1.8.6"
+
 # what sort of extension are we building?
 kind = Config::CONFIG["DLEXT"]
 
@@ -62,6 +64,17 @@ Rake::Task[:test].prerequisites << :extensions
 Rake::Task["test:todo"].prerequisites << :extensions
 
 Rake::Task[:check_manifest].prerequisites << GENERATED_NODE
+
+task :install_expat do
+  Dir.chdir("./srcs") do
+    `tar -xf xmlparser-0.6.8.tar`
+    Dir.chdir("xmlparser") do
+      puts `#{Gem.ruby} extconf.rb`
+      puts `make`
+      puts `sudo make install`
+    end
+  end
+end
 
 task :build => :extensions
 task :extension => :build
