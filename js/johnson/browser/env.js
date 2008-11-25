@@ -274,9 +274,6 @@ print = function(txt) { Ruby.puts(txt); };
       return getDocument( this._dom.ownerDocument );
       // return getDocument( this._dom.ownerDocument() );
     },
-    get documentElement(){
-      return makeNode( this._dom.documentElement() );
-    },
     get parentNode() {
       return makeNode( this._dom.parentNode() );
     },
